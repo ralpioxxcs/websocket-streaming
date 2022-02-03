@@ -19,7 +19,7 @@
 
     ws.onmessage = (ev) => {
       var msg = JSON.parse(ev.data);
-      imgElem.setAttribute("src", `data:image/jpeg;base64.` + msg.enc);
+      imgElem.setAttribute("src", `data:image/jpeg;base64,` + msg.enc);
     };
     ws.onopen = () => {
       console.log("websocket connected");

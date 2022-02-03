@@ -62,7 +62,8 @@ func openCam() error {
 	defer img.Close()
 	for {
 		cap.Read(&img)
-		imgBytes = img.ToBytes()
+		bytes, _ := gocv.IMEncode(".jpg", img)
+		imgBytes = bytes.GetBytes()
 	}
 }
 
