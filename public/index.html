@@ -1,34 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>streaming</title>
-  </head>
-  <body>
-    <h1>{{.}}</h1>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <img id="imgBox" src="" />
-  </body>
-  <script type="text/javascript">
-    let ws = new WebSocket("ws://localhost:8080/stream");
+  <title>streaming</title>
+</head>
 
-    const imgElem = document.getElementById("imgBox");
+<body>
+  <h1>{{.}}</h1>
+  <canvas id="canvas" width="1920" height="1080" style="border: 2px solid black; background-color: gray;"></canvas>
+  <br />
+  <button type="submit" id="playBtn" onclick="playCamera()">start</button>
+  <button type="submit" id="stopBtn" onclick="stopCamera()" disabled="true">stop</button>
 
-    ws.onmessage = (ev) => {
-      var msg = JSON.parse(ev.data);
-      imgElem.setAttribute("src", `data:image/jpeg;base64,` + msg.enc);
-    };
-    ws.onopen = () => {
-      console.log("websocket connected");
-    };
-    ws.onclose = () => {
-      console.log("websocket closed");
-    };
-    ws.onerror = (err) => {
-      console.log("websocket err", err);
-    };
-  </script>
+  <script type="text/javascript" src="static/main.js"></script>
+</body>
+
 </html>

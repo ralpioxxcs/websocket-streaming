@@ -6,7 +6,6 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"gocv.io/x/gocv"
@@ -39,12 +38,10 @@ const (
 )
 
 var (
-	Upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		}}
-
+	WsConn   *websocket.Conn
 	imgBytes []byte
+
+	pauseLoop chan bool = make(chan bool)
 
 	templates *template.Template
 )
@@ -67,41 +64,62 @@ func openCam() error {
 	}
 }
 
-func home(rw http.ResponseWriter, r *http.Request) {
+func homePage(rw http.ResponseWriter, r *http.Request) {
 	templates.Execute(rw, "Streaming")
 }
 
-func handleStream(rw http.ResponseWriter, r *http.Request) {
-	ws, err := Upgrader.Upgrade(rw, r, nil)
-	if err != nil {
-		// msg := fmt.Sprintf("failed to init websocket (%v)", err)
-		// fmt.Println(msg)
-		// http.Error(rw, msg, http.StatusInternalServerError)
-		return
+func stream(rw http.ResponseWriter, r *http.Request) {
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
 	}
 
-	// recv
+	var err error
+	WsConn, err = upgrader.Upgrade(rw, r, nil)
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer WsConn.Close()
+
+	// send
 	go func() {
 		for {
-			_, _, err := ws.ReadMessage()
-			if err != nil {
-				break
+			select {
+			case pause := <-pauseLoop:
+				if pause {
+					<-pauseLoop
+				}
+			default:
+				enc := base64.StdEncoding.EncodeToString(imgBytes)
+				err := WsConn.WriteMessage(websocket.TextMessage, []byte(enc))
+				if err != nil {
+					log.Printf("failed to write : %v", err)
+				}
+				// time.Sleep(100 * time.Millisecond)
 			}
 		}
 	}()
 
-	res := map[string]interface{}{}
+	pauseLoop <- true
 
-	// send
+	// recv
 	for {
-		enc := base64.StdEncoding.EncodeToString(imgBytes)
-		res["enc"] = enc
-		err := ws.WriteJSON(&res)
+		_, bytes, err := WsConn.ReadMessage()
 		if err != nil {
-			log.Printf("failed to write : %v", err)
+			fmt.Printf("read error : %v\n", err)
+			break
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		msg := string(bytes)
+		if msg == "start" {
+			fmt.Println("start")
+			pauseLoop <- true
+		} else if msg == "stop" {
+			fmt.Println("stop")
+			pauseLoop <- true
+		}
 	}
 
 }
@@ -109,12 +127,13 @@ func handleStream(rw http.ResponseWriter, r *http.Request) {
 func main() {
 	go openCam()
 
-	templates = template.Must(templates.ParseGlob("public/index.html"))
+	templates = template.Must(templates.ParseGlob("./public/index.html"))
 
-	http.Handle("/static", http.FileServer(http.Dir("./public")))
+	fs := http.FileServer(http.Dir("./public"))
+	http.Handle("/static/", http.StripPrefix("/static", fs)) // file serving
 
-	http.HandleFunc("/", home)
-	http.HandleFunc("/stream", handleStream)
+	http.HandleFunc("/", homePage) // '/' route
+	http.HandleFunc("/ws", stream) // websocket '/ws' route
 
 	fmt.Println("Listening on http://localhost:8080")
 	log.Fatalln(http.ListenAndServe("[::]:8080", nil))
